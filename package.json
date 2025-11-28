@@ -1,0 +1,24 @@
+{
+  "name": "template-editor",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "server": "node server.js"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "@tanstack/react-query": "^5.90.11",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "handlebars": "^4.7.8",
+    "next": "^14.2.0",
+    "playwright": "^1.43.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "zustand": "^5.0.8"
+  }
+}
