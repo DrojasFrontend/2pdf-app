@@ -1,0 +1,7 @@
+[build]
+  base = "2pdf-app"
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
