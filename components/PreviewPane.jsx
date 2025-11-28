@@ -114,6 +114,7 @@ export default function PreviewPane() {
   const [output, setOutput] = useState('');
   const [blobUrl, setBlobUrl] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const blobUrlRef = useRef('');
   
   // Get state from Zustand store
@@ -121,7 +122,14 @@ export default function PreviewPane() {
   const css = useEditorStore((state) => state.css);
   const data = useEditorStore((state) => state.data);
 
+  // Ensure component only renders on client
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return; // Don't run on server
+    
     try {
       const json = JSON.parse(data);
       const hydrated = hydrateHtml(html, json);
@@ -149,7 +157,7 @@ export default function PreviewPane() {
         blobUrlRef.current = '';
       }
     };
-  }, [html, css, data]);
+  }, [html, css, data, mounted]);
 
   const handleGeneratePDF = async () => {
     setIsGenerating(true);
@@ -159,6 +167,24 @@ export default function PreviewPane() {
       setIsGenerating(false);
     }
   };
+
+  if (!mounted) {
+    return (
+      <div className="preview-container">
+        <div className="preview-header">
+          <button 
+            className="generate-pdf-btn"
+            disabled
+          >
+            Cargando...
+          </button>
+        </div>
+        <div className="preview-frame" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>
+          Cargando preview...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="preview-container">
@@ -171,12 +197,14 @@ export default function PreviewPane() {
           {isGenerating ? 'Generando...' : 'Generar PDF'}
         </button>
       </div>
-      <iframe
-        className="preview-frame"
-        src={blobUrl || undefined}
-        sandbox="allow-same-origin allow-scripts allow-popups"
-        title="Preview"
-      />
+      {blobUrl && (
+        <iframe
+          className="preview-frame"
+          src={blobUrl}
+          sandbox="allow-same-origin allow-scripts allow-popups"
+          title="Preview"
+        />
+      )}
     </div>
   );
 }
