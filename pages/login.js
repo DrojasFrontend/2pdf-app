@@ -30,14 +30,29 @@ export default function Login() {
     try {
       setLoading(true);
       // Construir la URL de redirección de manera segura
-      const redirectTo = typeof window !== 'undefined' 
-        ? `${window.location.origin}/`
-        : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000/';
+      // En desarrollo local, forzar localhost:3000 explícitamente
+      let redirectTo;
+      if (typeof window !== 'undefined') {
+        const isLocalhost = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' ||
+                           window.location.hostname === '';
+        if (isLocalhost) {
+          // Forzar localhost:3000 en desarrollo
+          redirectTo = `http://localhost:${window.location.port || 3000}/`;
+        } else {
+          redirectTo = `${window.location.origin}/`;
+        }
+      } else {
+        redirectTo = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000/';
+      }
+      
+      console.log('Redirect URL:', redirectTo); // Debug
+      console.log('Current location:', typeof window !== 'undefined' ? window.location.href : 'server');
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo,
+          redirectTo: redirectTo,
         },
       });
 
@@ -46,7 +61,7 @@ export default function Login() {
         alert('Error al iniciar sesión: ' + error.message);
         setLoading(false);
       }
-      // No establecer loading en false aquí porque la redirección ocurrirá
+      // No establecer loading en false aquí porque la redirección ocurrirá automáticamente
     } catch (error) {
       console.error('Error:', error);
       alert('Error inesperado al iniciar sesión');
