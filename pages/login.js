@@ -10,7 +10,7 @@ export default function Login() {
     // Verificar si ya está autenticado
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.push('/');
+        router.push('/templates');
       }
     });
 
@@ -19,7 +19,7 @@ export default function Login() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-        router.push('/');
+        router.push('/templates');
       }
     });
 
@@ -29,30 +29,17 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-      // Construir la URL de redirección de manera segura
-      // En desarrollo local, forzar localhost:3000 explícitamente
-      let redirectTo;
-      if (typeof window !== 'undefined') {
-        const isLocalhost = window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1' ||
-                           window.location.hostname === '';
-        if (isLocalhost) {
-          // Forzar localhost:3000 en desarrollo
-          redirectTo = `http://localhost:${window.location.port || 3000}/`;
-        } else {
-          redirectTo = `${window.location.origin}/`;
-        }
-      } else {
-        redirectTo = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000/';
-      }
-      
-      console.log('Redirect URL:', redirectTo); // Debug
-      console.log('Current location:', typeof window !== 'undefined' ? window.location.href : 'server');
+      // Construir la URL de redirección hacia /templates
+      const baseUrl = typeof window !== 'undefined'
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+      const redirectTo = `${baseUrl}/templates`;
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectTo,
+          redirectTo,
         },
       });
 
