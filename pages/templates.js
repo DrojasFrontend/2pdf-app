@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useRouter } from 'next/router';
 import { useUser } from '../hooks/useUser';
-import { MOCK_TEMPLATES } from '../constants/settings';
+import { useTemplates } from '../hooks/useTemplates';
 import SettingsSidebar from '../components/SettingsSidebar';
 import SettingsHeader from '../components/SettingsHeader';
 import SettingsContent from '../components/SettingsContent';
@@ -9,11 +10,12 @@ import ChatWidget from '../components/ChatWidget';
 export default function Templates() {
   const [activeSection, setActiveSection] = useState('Templates');
   const { userName } = useUser();
-  const [templates] = useState(MOCK_TEMPLATES);
+  const { templates, loading, error } = useTemplates();
+  const router = useRouter();
 
   const handleAddTemplate = () => {
-    // TODO: Implementar lógica para agregar template
-    console.log('Add template clicked');
+    // Redirigir al editor para crear un nuevo template
+    router.push('/');
   };
 
   const handleAddFolder = () => {
