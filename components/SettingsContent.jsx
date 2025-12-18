@@ -1,8 +1,9 @@
 'use client';
 import TemplateListItem from './TemplateListItem';
+import TemplateSkeleton from './TemplateSkeleton';
 import SearchBar from './SearchBar';
 
-export default function SettingsContent({ templates, onAddFolder, onTemplateAction, searchTerm, onSearchChange, filteredTemplates }) {
+export default function SettingsContent({ templates, onAddFolder, onTemplateAction, searchTerm, onSearchChange, filteredTemplates, loading }) {
   return (
     <div className="settings-content">
       <div className="settings-actions">
@@ -18,7 +19,14 @@ export default function SettingsContent({ templates, onAddFolder, onTemplateActi
       </div>
 
       <div className="templates-list">
-        {filteredTemplates.length === 0 ? (
+        {loading ? (
+          <>
+            <TemplateSkeleton />
+            <TemplateSkeleton />
+            <TemplateSkeleton />
+            <TemplateSkeleton />
+          </>
+        ) : filteredTemplates.length === 0 ? (
           <div className="templates-empty">
             <p>
               {searchTerm 

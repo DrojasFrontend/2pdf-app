@@ -1,23 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getOrganizationMembers, getUserRole, isOwner } from '../lib/team';
 
-export function useTeam() {
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState(null);
-  const [isUserOwner, setIsUserOwner] = useState(false);
-  const [error, setError] = useState(null);
+// Caché global para mantener los datos entre montajes del componente
+let cachedMembers = [];
+let cachedUserRole = null;
+let cachedIsUserOwner = false;
+let cacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
-  const fetchMembers = async () => {
+export function useTeam() {
+  const [members, setMembers] = useState(cachedMembers);
+  const [loading, setLoading] = useState(cachedMembers.length === 0);
+  const [userRole, setUserRole] = useState(cachedUserRole);
+  const [isUserOwner, setIsUserOwner] = useState(cachedIsUserOwner);
+  const [error, setError] = useState(null);
+  const isInitialMount = useRef(true);
+
+  const fetchMembers = async (showLoading = true) => {
     try {
-      setLoading(true);
+      // Solo mostrar loading si no hay datos en caché o si se solicita explícitamente
+      if (showLoading || cachedMembers.length === 0) {
+        setLoading(true);
+      }
       setError(null);
+      
       const [membersData, role, owner] = await Promise.all([
         getOrganizationMembers(),
         getUserRole(),
         isOwner(),
       ]);
+      
+      // Actualizar caché
+      cachedMembers = membersData;
+      cachedUserRole = role;
+      cachedIsUserOwner = owner;
+      cacheTimestamp = Date.now();
+      
+      // Actualizar estado
       setMembers(membersData);
       setUserRole(role);
       setIsUserOwner(owner);
@@ -30,7 +50,28 @@ export function useTeam() {
   };
 
   useEffect(() => {
-    fetchMembers();
+    const now = Date.now();
+    const isCacheValid = cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION;
+    
+    if (isInitialMount.current) {
+      // Primera carga: usar caché si es válida, sino cargar
+      if (isCacheValid && cachedMembers.length > 0) {
+        setMembers(cachedMembers);
+        setUserRole(cachedUserRole);
+        setIsUserOwner(cachedIsUserOwner);
+        setLoading(false);
+        // Revalidar en segundo plano sin mostrar loading
+        fetchMembers(false);
+      } else {
+        fetchMembers(true);
+      }
+      isInitialMount.current = false;
+    } else {
+      // Revalidación en segundo plano: no mostrar loading si hay datos
+      if (cachedMembers.length > 0) {
+        fetchMembers(false);
+      }
+    }
   }, []);
 
   const inviteUser = async ({ email, firstName, lastName }) => {
@@ -64,8 +105,8 @@ export function useTeam() {
         throw new Error(data.error || 'Error al enviar invitación');
       }
 
-      // Refrescar la lista de miembros
-      await fetchMembers();
+      // Refrescar la lista de miembros (mostrar loading porque es una acción explícita)
+      await fetchMembers(true);
       
       return data;
     } catch (err) {

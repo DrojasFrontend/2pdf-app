@@ -7,6 +7,7 @@ import SettingsSidebar from '../components/SettingsSidebar';
 import SettingsHeader from '../components/SettingsHeader';
 import InviteMemberModal from '../components/InviteMemberModal';
 import ChatWidget from '../components/ChatWidget';
+import UserItemSkeleton from '../components/UserItemSkeleton';
 
 export default function Team() {
   const { userName } = useUser();
@@ -76,8 +77,11 @@ export default function Team() {
 
         <div className="settings-content" style={{ padding: '24px' }}>
           {loading ? (
-            <div style={{ textAlign: 'center', color: '#8b949e', padding: '40px' }}>
-              Cargando miembros...
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <UserItemSkeleton />
+              <UserItemSkeleton />
+              <UserItemSkeleton />
+              <UserItemSkeleton />
             </div>
           ) : error ? (
             <div style={{ 
@@ -114,24 +118,28 @@ export default function Team() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '50%',
-                      backgroundColor: '#21262d',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#c9d1d9',
-                      fontWeight: '600',
-                      fontSize: '16px',
-                    }}>
-                      {member.displayName?.charAt(0)?.toUpperCase() || 'U'}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: '500', color: '#c9d1d9', marginBottom: '4px' }}>
-                        {member.displayName || 'Sin nombre'}
+                    {member.displayName && (
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        backgroundColor: '#21262d',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#c9d1d9',
+                        fontWeight: '600',
+                        fontSize: '16px',
+                      }}>
+                        {member.displayName.charAt(0).toUpperCase()}
                       </div>
+                    )}
+                    <div>
+                      {member.displayName && (
+                        <div style={{ fontWeight: '500', color: '#c9d1d9', marginBottom: '4px' }}>
+                          {member.displayName}
+                        </div>
+                      )}
                       <div style={{ fontSize: '0.875rem', color: '#8b949e' }}>
                         {member.authUserId ? 'Usuario activo' : 'Invitación pendiente'}
                       </div>

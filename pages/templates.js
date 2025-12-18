@@ -90,6 +90,7 @@ export default function Templates() {
           onTemplateAction={handleTemplateAction}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
+          loading={loading}
         />
       </main>
 
