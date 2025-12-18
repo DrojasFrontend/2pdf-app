@@ -142,6 +142,31 @@ export default function EditorContainer() {
     const hasChanges = html !== savedHtml || css !== savedCss || data !== savedData;
     setUnsavedChanges(hasChanges);
   }, [html, css, data, savedHtml, savedCss, savedData]);
+
+  // Atajos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+S o Cmd+S → Guardar
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (!saving && unsavedChanges) {
+          handleSaveTemplate();
+        } else if (!saving) {
+          showToast('No hay cambios para guardar', 'info');
+        }
+      }
+      
+      // Esc → Cerrar sidebar AI si está abierto
+      if (e.key === 'Escape' && showAISidebar) {
+        handleToggleSidebar();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [saving, unsavedChanges, showAISidebar, handleSaveTemplate, handleToggleSidebar]);
   
   // Advertencia al salir sin guardar
   const handleBackClick = () => {
@@ -265,7 +290,7 @@ export default function EditorContainer() {
               className="save-btn"
               onClick={handleSaveTemplate}
               disabled={saving}
-              title={unsavedChanges ? 'Tienes cambios no guardados' : 'Guardar template'}
+              title={unsavedChanges ? 'Tienes cambios no guardados (Ctrl+S)' : 'Guardar template (Ctrl+S)'}
               style={{
                 padding: '0.5rem 1rem',
                 backgroundColor: saving 
