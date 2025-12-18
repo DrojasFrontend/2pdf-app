@@ -73,23 +73,106 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Email, nombre y apellido son requeridos' });
     }
 
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ error: 'Formato de email inválido' });
+    }
+
+    // Verificar si el usuario ya existe en auth.users usando listUsers
+    // Nota: Esto puede ser costoso si hay muchos usuarios, pero es necesario para verificar
+    const { data: usersList, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (!listError && usersList?.users) {
+      const existingUser = usersList.users.find(user => user.email === email.trim());
+      
+      if (existingUser) {
+        // Si el usuario ya existe, verificar si ya está en la organización
+        const { data: existingAppUser } = await supabase
+          .from('app_users')
+          .select('id')
+          .eq('auth_user_id', existingUser.id)
+          .single();
+
+        if (existingAppUser) {
+          const { data: existingMembership } = await supabase
+            .from('organization_memberships')
+            .select('id')
+            .eq('user_id', existingAppUser.id)
+            .eq('organization_id', membership.organization_id)
+            .single();
+
+          if (existingMembership) {
+            return res.status(400).json({ error: 'Este usuario ya es miembro de la organización' });
+          }
+        }
+        
+        // Si el usuario existe pero no está en la organización, no podemos usar inviteUserByEmail
+        // Deberíamos agregarlo directamente a la organización
+        return res.status(400).json({ error: 'Este usuario ya tiene una cuenta. Debe ser agregado directamente a la organización.' });
+      }
+    }
+
+    // Construir redirectTo URL de forma más robusta
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const redirectTo = `${siteUrl.replace(/\/$/, '')}/login`;
+
     // Invitar usuario usando Admin API
     // Almacenar organization_id en los metadatos para crear membership después
     const { data: invitedUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      email,
+      email.trim(),
       {
         data: {
-          first_name: firstName,
-          last_name: lastName,
-          display_name: `${firstName} ${lastName}`,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          display_name: `${firstName.trim()} ${lastName.trim()}`,
           invited_organization_id: membership.organization_id, // Para crear membership después
         },
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/login`,
+        redirectTo: redirectTo,
       }
     );
 
     if (inviteError) {
-      return res.status(400).json({ error: inviteError.message });
+      // Log completo del error para debugging
+      console.error('=== ERROR DETALLADO DE SUPABASE ===');
+      console.error('Mensaje:', inviteError.message);
+      console.error('Status:', inviteError.status);
+      console.error('Code:', inviteError.code);
+      console.error('Error completo:', JSON.stringify(inviteError, null, 2));
+      console.error('Email intentado:', email.trim());
+      console.error('RedirectTo:', redirectTo);
+      console.error('===================================');
+      
+      // Mensajes de error más descriptivos según el tipo de error
+      let errorMessage = inviteError.message || 'Error al enviar invitación';
+      
+      // Manejar error unexpected_failure (generalmente es problema de SMTP)
+      if (inviteError.code === 'unexpected_failure' || inviteError.status === 500) {
+        errorMessage = `Error interno de Supabase al enviar el email. Esto generalmente indica un problema con la configuración SMTP.
+
+Verifica en Supabase Dashboard:
+1. Authentication > Email > SMTP Settings
+   - Sender email debe coincidir exactamente con tu email de Gmail
+   - SMTP Host: smtp.gmail.com
+   - Port: 587 (TLS) o 465 (SSL)
+   - Username: tu email completo
+   - Password: App Password de 16 caracteres (sin espacios)
+   - Si usas puerto 587, habilita TLS/STARTTLS
+
+2. Authentication > Email Templates > Invite user
+   - Verifica que el template esté configurado correctamente
+
+3. Logs > Auth Logs
+   - Revisa los logs para ver el error específico de SMTP
+
+También puedes probar enviando un "Test email" desde Authentication > Email Templates.`;
+      } else if (inviteError.message && inviteError.message.toLowerCase().includes('email')) {
+        errorMessage = `Error al enviar email: ${inviteError.message}. Verifica la configuración SMTP en Supabase Dashboard > Authentication > Email y los logs en Auth Logs.`;
+      } else if (inviteError.message && inviteError.message.toLowerCase().includes('smtp')) {
+        errorMessage = `Error SMTP: ${inviteError.message}. Verifica las credenciales SMTP en Supabase Dashboard > Authentication > Email.`;
+      }
+      
+      return res.status(400).json({ error: errorMessage });
     }
 
     return res.status(200).json({ 
@@ -98,8 +181,19 @@ export default async function handler(req, res) {
       user: invitedUser,
     });
   } catch (error) {
-    console.error('Error inviting user:', error);
-    return res.status(500).json({ error: error.message || 'Error interno del servidor' });
+    console.error('Error inviting user:', {
+      message: error.message,
+      stack: error.stack,
+      error: error,
+    });
+    
+    // Proporcionar mensaje más útil si es un error de red o conexión
+    let errorMessage = error.message || 'Error interno del servidor';
+    if (error.message && error.message.includes('fetch')) {
+      errorMessage = 'Error de conexión con Supabase. Verifica tu conexión a internet y la configuración de Supabase.';
+    }
+    
+    return res.status(500).json({ error: errorMessage });
   }
 }
 

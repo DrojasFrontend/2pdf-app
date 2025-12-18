@@ -3,10 +3,12 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { NAVIGATION_ITEMS } from '../constants/settings';
 import { ChevronRightIcon, ArrowUpIcon, FileTextIcon, MessageIcon } from './Icons';
+import UserSettingsModal from './UserSettingsModal';
 
-export default function SettingsSidebar({ activeSection, onSectionChange, userName, onLogout }) {
+export default function SettingsSidebar({ activeSection, onSectionChange, userName, userEmail, onLogout, onUpdateName }) {
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const menuRef = useRef(null);
 
   // Cerrar el menú al hacer click fuera
@@ -37,6 +39,18 @@ export default function SettingsSidebar({ activeSection, onSectionChange, userNa
     }
   };
 
+  const handleSettings = () => {
+    setShowUserMenu(false);
+    setShowSettingsModal(true);
+  };
+
+  const handleSaveName = async (newName) => {
+    if (onUpdateName) {
+      await onUpdateName(newName);
+    }
+    setShowSettingsModal(false);
+  };
+
   return (
     <aside className="settings-sidebar">
       <div 
@@ -62,6 +76,29 @@ export default function SettingsSidebar({ activeSection, onSectionChange, userNa
             zIndex: 1000,
             overflow: 'hidden',
           }}>
+            <button
+              onClick={handleSettings}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderBottom: '1px solid #30363d',
+                color: '#c9d1d9',
+                fontSize: '14px',
+                textAlign: 'left',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseOver={(e) => {
+                e.target.style.backgroundColor = '#21262d';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.backgroundColor = 'transparent';
+              }}
+            >
+              Ajustes
+            </button>
             <button
               onClick={handleLogout}
               style={{
@@ -131,6 +168,13 @@ export default function SettingsSidebar({ activeSection, onSectionChange, userNa
           <span className="notification-badge">5</span>
         </button>
       </div>
+
+      <UserSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        currentName={userName !== userEmail ? userName : ''}
+        onSave={handleSaveName}
+      />
     </aside>
   );
 }

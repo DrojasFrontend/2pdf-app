@@ -7,7 +7,7 @@ import CssEditor from './Editors/CssEditor';
 import DataEditor from './Editors/DataEditor';
 import PreviewPane from './PreviewPane';
 import AIChatSidebar from './AIChatSidebar';
-import SaveTemplateModal from './SaveTemplateModal';
+import Toast from './Toast';
 import { useEditorStore } from '../store/editorStore';
 import { supabase } from '../lib/supabase';
 import { useTemplates } from '../hooks/useTemplates';
@@ -16,8 +16,10 @@ export default function EditorContainer() {
   const [activeTab, setActiveTab] = useState('HTML');
   const [showAISidebar, setShowAISidebar] = useState(true);
   const [isClosing, setIsClosing] = useState(false);
-  const [showSaveModal, setShowSaveModal] = useState(false);
   const [currentTemplateId, setCurrentTemplateId] = useState(null);
+  const [currentTemplateName, setCurrentTemplateName] = useState('');
+  const [currentTemplateDescription, setCurrentTemplateDescription] = useState('');
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
   const { saveTemplate, updateTemplate, loadTemplate } = useTemplates();
   
@@ -29,6 +31,26 @@ export default function EditorContainer() {
   const setCss = useEditorStore((state) => state.setCss);
   const setData = useEditorStore((state) => state.setData);
   const updateUserData = useEditorStore((state) => state.updateUserData);
+  const markAsSaved = useEditorStore((state) => state.markAsSaved);
+  const savedHtml = useEditorStore((state) => state.savedHtml);
+  const savedCss = useEditorStore((state) => state.savedCss);
+  const savedData = useEditorStore((state) => state.savedData);
+  
+  // Estado para rastrear cambios no guardados
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
+  
+  // Estado para toast notifications
+  const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
+  
+  // Función para verificar cambios no guardados
+  const checkUnsavedChanges = () => {
+    return html !== savedHtml || css !== savedCss || data !== savedData;
+  };
+  
+  // Función para mostrar toast
+  const showToast = (message, type = 'success') => {
+    setToast({ isVisible: true, message, type });
+  };
 
   // Update user data when component mounts or user changes
   useEffect(() => {
@@ -69,27 +91,102 @@ export default function EditorContainer() {
     }
   };
 
-  const handleSaveTemplate = async ({ name, description }) => {
+  const handleSaveTemplate = async () => {
+    if (saving) return;
+    
     try {
+      setSaving(true);
+      
       if (currentTemplateId) {
-        // Actualizar template existente
+        // Actualizar template existente - usar nombre y descripción actuales
         await updateTemplate(currentTemplateId, {
           html,
           css,
           data,
           notes: `Actualizado: ${new Date().toLocaleString()}`,
         });
-        alert('Template actualizado exitosamente');
+        showToast('Template actualizado exitosamente', 'success');
       } else {
-        // Crear nuevo template
-        await saveTemplate({ name, description, html, css, data });
-        alert('Template guardado exitosamente');
+        // Crear nuevo template - usar nombre por defecto
+        const defaultName = `Template ${new Date().toLocaleDateString('es-ES', { 
+          day: '2-digit', 
+          month: '2-digit', 
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}`;
+        await saveTemplate({ 
+          name: defaultName, 
+          description: null, 
+          html, 
+          css, 
+          data 
+        });
+        showToast('Template guardado exitosamente', 'success');
       }
-      setShowSaveModal(false);
+      // Marcar como guardado después de guardar exitosamente
+      setTimeout(() => {
+        markAsSaved();
+        setUnsavedChanges(false);
+      }, 100);
     } catch (error) {
       console.error('Error saving template:', error);
-      alert('Error al guardar el template: ' + error.message);
+      showToast('Error al guardar el template: ' + error.message, 'error');
+    } finally {
+      setSaving(false);
     }
+  };
+  
+  // Verificar cambios no guardados periódicamente
+  useEffect(() => {
+    const hasChanges = html !== savedHtml || css !== savedCss || data !== savedData;
+    setUnsavedChanges(hasChanges);
+  }, [html, css, data, savedHtml, savedCss, savedData]);
+
+  // Atajos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+S o Cmd+S → Guardar
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (!saving) {
+          if (unsavedChanges) {
+            handleSaveTemplate();
+          } else {
+            showToast('No hay cambios para guardar', 'info');
+          }
+        }
+      }
+      
+      // Esc → Cerrar sidebar AI si está abierto, o salir del editor si está cerrado
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (showAISidebar) {
+          handleToggleSidebar();
+        } else {
+          handleBackClick();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saving, unsavedChanges, showAISidebar]);
+  
+  // Advertencia al salir sin guardar
+  const handleBackClick = () => {
+    if (unsavedChanges) {
+      const confirmLeave = window.confirm(
+        'Tienes cambios no guardados. ¿Estás seguro de que quieres salir sin guardar?'
+      );
+      if (!confirmLeave) {
+        return;
+      }
+    }
+    router.push('/templates');
   };
 
   // Cargar template desde query params si existe
@@ -97,20 +194,37 @@ export default function EditorContainer() {
     const templateId = router.query.templateId;
     if (templateId && typeof templateId === 'string' && templateId !== currentTemplateId) {
       setCurrentTemplateId(templateId);
-      // Cargar el template
+        // Cargar el template
       loadTemplate(templateId)
         .then((templateData) => {
           setHtml(templateData.version.html);
           setCss(templateData.version.css);
           setData(templateData.version.data || '{}');
+          // Guardar nombre y descripción del template
+          setCurrentTemplateName(templateData.name || '');
+          setCurrentTemplateDescription(templateData.description || '');
+          // Marcar como guardado después de cargar
+          setTimeout(() => {
+            markAsSaved();
+          }, 100);
         })
         .catch((error) => {
           console.error('Error loading template:', error);
-          alert('Error al cargar el template: ' + error.message);
+          showToast('Error al cargar el template: ' + error.message, 'error');
         });
     } else if (!templateId && currentTemplateId) {
       // Si no hay templateId en la URL, limpiar el estado
       setCurrentTemplateId(null);
+      setCurrentTemplateName('');
+      setCurrentTemplateDescription('');
+      // Marcar como guardado cuando se limpia (nuevo template)
+      markAsSaved();
+    } else if (!templateId && !currentTemplateId) {
+      // Si es un template nuevo, limpiar nombre y descripción
+      setCurrentTemplateName('');
+      setCurrentTemplateDescription('');
+      // Marcar estado inicial como guardado
+      markAsSaved();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query.templateId]);
@@ -147,7 +261,7 @@ export default function EditorContainer() {
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <button
               className="back-btn"
-              onClick={() => router.push('/templates')}
+              onClick={handleBackClick}
               title="Regresar a Templates"
               style={{
                 padding: '0.5rem 1rem',
@@ -182,27 +296,56 @@ export default function EditorContainer() {
             )}
             <button
               className="save-btn"
-              onClick={() => setShowSaveModal(true)}
-              title="Guardar template"
+              onClick={handleSaveTemplate}
+              disabled={saving}
+              title={unsavedChanges ? 'Tienes cambios no guardados (Ctrl+S)' : 'Guardar template (Ctrl+S)'}
               style={{
                 padding: '0.5rem 1rem',
-                backgroundColor: '#238636',
+                backgroundColor: saving 
+                  ? '#6b7280' 
+                  : unsavedChanges 
+                    ? '#f59e0b' 
+                    : '#238636',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '6px',
-                cursor: 'pointer',
+                cursor: saving ? 'not-allowed' : 'pointer',
                 fontSize: '0.875rem',
                 fontWeight: '500',
                 transition: 'background-color 0.2s',
+                position: 'relative',
               }}
               onMouseOver={(e) => {
-                e.target.style.backgroundColor = '#2ea043';
+                if (!saving) {
+                  e.target.style.backgroundColor = unsavedChanges ? '#d97706' : '#2ea043';
+                }
               }}
               onMouseOut={(e) => {
-                e.target.style.backgroundColor = '#238636';
+                if (!saving) {
+                  e.target.style.backgroundColor = unsavedChanges ? '#f59e0b' : '#238636';
+                }
               }}
             >
-              {currentTemplateId ? 'Actualizar' : 'Guardar'}
+              {unsavedChanges && !saving && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    width: '8px',
+                    height: '8px',
+                    backgroundColor: '#ef4444',
+                    borderRadius: '50%',
+                    border: '2px solid #fff',
+                  }}
+                />
+              )}
+              {saving 
+                ? 'Guardando...' 
+                : currentTemplateId 
+                  ? 'Actualizar' 
+                  : 'Guardar'}
+              {unsavedChanges && !saving && ' •'}
             </button>
             <button
               className="logout-btn"
@@ -238,11 +381,11 @@ export default function EditorContainer() {
         <PreviewPane />
       </div>
       
-      <SaveTemplateModal
-        isOpen={showSaveModal}
-        onClose={() => setShowSaveModal(false)}
-        onSave={handleSaveTemplate}
-        isUpdate={!!currentTemplateId}
+      <Toast
+        isVisible={toast.isVisible}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, isVisible: false })}
       />
     </div>
   );

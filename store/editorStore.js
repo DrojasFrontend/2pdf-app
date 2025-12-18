@@ -58,9 +58,21 @@ export const useEditorStore = create((set) => ({
   css: defaultCss,
   data: defaultData,
   
+  // Estado guardado para comparar cambios
+  savedHtml: defaultHtml,
+  savedCss: defaultCss,
+  savedData: defaultData,
+  
   setHtml: (html) => set({ html }),
   setCss: (css) => set({ css }),
   setData: (data) => set({ data }),
+  
+  // Guardar el estado actual como "guardado"
+  markAsSaved: () => set((state) => ({
+    savedHtml: state.html,
+    savedCss: state.css,
+    savedData: state.data,
+  })),
   
   updateUserData: (user) => {
     // Obtener el nombre del usuario desde user_metadata, priorizando display_name

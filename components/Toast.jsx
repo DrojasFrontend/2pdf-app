@@ -14,8 +14,8 @@ export default function Toast({ message, type = 'success', isVisible, onClose })
 
   if (!isVisible) return null;
 
-  const bgColor = type === 'success' ? '#238636' : type === 'error' ? '#f85149' : '#21262d';
-  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+  const bgColor = type === 'success' ? '#238636' : type === 'error' ? '#f85149' : type === 'info' ? '#0969da' : '#21262d';
+  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'info' ? 'ℹ' : 'ℹ';
 
   return (
     <div
