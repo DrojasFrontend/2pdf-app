@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getUserTemplates, createTemplate, createTemplateVersion, getTemplate } from '../lib/templates';
+import { getUserTemplates, createTemplate, createTemplateVersion, getTemplate, deleteTemplate, duplicateTemplate } from '../lib/templates';
 
 export function useTemplates() {
   const [templates, setTemplates] = useState([]);
@@ -53,6 +53,24 @@ export function useTemplates() {
     }
   };
 
+  const removeTemplate = async (templateId) => {
+    try {
+      await deleteTemplate(templateId);
+      await fetchTemplates(); // Refrescar la lista
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const duplicateTemplateAction = async (templateId) => {
+    try {
+      await duplicateTemplate(templateId);
+      await fetchTemplates(); // Refrescar la lista
+    } catch (err) {
+      throw err;
+    }
+  };
+
   return {
     templates,
     loading,
@@ -60,6 +78,8 @@ export function useTemplates() {
     saveTemplate,
     updateTemplate,
     loadTemplate,
+    removeTemplate,
+    duplicateTemplate: duplicateTemplateAction,
     refreshTemplates: fetchTemplates,
   };
 }
