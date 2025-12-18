@@ -1,12 +1,34 @@
 'use client';
+import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { CodeIcon, CopyIcon, AlertIcon, EditIcon, MoreVerticalIcon } from './Icons';
+import { useTemplates } from '../hooks/useTemplates';
+import { useEditorStore } from '../store/editorStore';
 
 export default function TemplateListItem({ template }) {
   const router = useRouter();
+  const { loadTemplate } = useTemplates();
+  const { setHtml, setCss, setData } = useEditorStore();
+  const [loading, setLoading] = useState(false);
 
-  const handleEdit = () => {
-    router.push('/template-editor');
+  const handleEdit = async () => {
+    try {
+      setLoading(true);
+      const templateData = await loadTemplate(template.id);
+      
+      // Cargar el template en el editor
+      setHtml(templateData.version.html);
+      setCss(templateData.version.css);
+      setData(templateData.version.data || '{}');
+      
+      // Redirigir al editor con el templateId
+      router.push(`/?templateId=${template.id}`);
+    } catch (error) {
+      console.error('Error loading template:', error);
+      alert('Error al cargar el template: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCopyId = () => {
@@ -25,9 +47,10 @@ export default function TemplateListItem({ template }) {
           <button 
             className="template-edit-btn"
             onClick={handleEdit}
+            disabled={loading}
           >
             <EditIcon className="edit-icon" />
-            Edit
+            {loading ? 'Cargando...' : 'Edit'}
           </button>
           <button className="template-more-btn">
             <MoreVerticalIcon />
@@ -35,6 +58,11 @@ export default function TemplateListItem({ template }) {
         </div>
       </div>
       <div className="template-details">
+        {template.description && (
+          <div className="template-description" style={{ marginBottom: '8px', color: '#6b7280', fontSize: '0.875rem' }}>
+            {template.description}
+          </div>
+        )}
         <div className="template-id">
           <span>ID: {template.id}</span>
           <button 
@@ -45,11 +73,9 @@ export default function TemplateListItem({ template }) {
             <CopyIcon />
           </button>
         </div>
-        <div className="template-engine">Engine: {template.engine}</div>
-        {template.hasUnpublishedChanges && (
-          <div className="template-warning">
-            <AlertIcon className="warning-icon" />
-            <span>Unpublished changes</span>
+        {template.version && (
+          <div className="template-version" style={{ marginTop: '4px', color: '#6b7280', fontSize: '0.875rem' }}>
+            Versión: {template.version.version_label}
           </div>
         )}
       </div>

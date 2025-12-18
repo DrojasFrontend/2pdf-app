@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import AuthGuard from '../components/AuthGuard';
+import OrganizationGuard from '../components/OrganizationGuard';
 
 export default function App({ Component, pageProps }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -24,7 +25,9 @@ export default function App({ Component, pageProps }) {
         <Component {...pageProps} />
       ) : (
         <AuthGuard>
-          <Component {...pageProps} />
+          <OrganizationGuard>
+            <Component {...pageProps} />
+          </OrganizationGuard>
         </AuthGuard>
       )}
     </QueryClientProvider>
