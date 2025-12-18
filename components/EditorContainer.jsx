@@ -338,13 +338,6 @@ export default function EditorContainer() {
       <div className="right-panel">
         <PreviewPane />
       </div>
-      
-      <SaveTemplateModal
-        isOpen={showSaveModal}
-        onClose={() => setShowSaveModal(false)}
-        onSave={handleSaveTemplate}
-        isUpdate={!!currentTemplateId}
-      />
     </div>
   );
 }
