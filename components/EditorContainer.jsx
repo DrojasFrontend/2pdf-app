@@ -7,7 +7,6 @@ import CssEditor from './Editors/CssEditor';
 import DataEditor from './Editors/DataEditor';
 import PreviewPane from './PreviewPane';
 import AIChatSidebar from './AIChatSidebar';
-import SaveTemplateModal from './SaveTemplateModal';
 import { useEditorStore } from '../store/editorStore';
 import { supabase } from '../lib/supabase';
 import { useTemplates } from '../hooks/useTemplates';
@@ -16,8 +15,10 @@ export default function EditorContainer() {
   const [activeTab, setActiveTab] = useState('HTML');
   const [showAISidebar, setShowAISidebar] = useState(true);
   const [isClosing, setIsClosing] = useState(false);
-  const [showSaveModal, setShowSaveModal] = useState(false);
   const [currentTemplateId, setCurrentTemplateId] = useState(null);
+  const [currentTemplateName, setCurrentTemplateName] = useState('');
+  const [currentTemplateDescription, setCurrentTemplateDescription] = useState('');
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
   const { saveTemplate, updateTemplate, loadTemplate } = useTemplates();
   
@@ -81,10 +82,14 @@ export default function EditorContainer() {
     }
   };
 
-  const handleSaveTemplate = async ({ name, description }) => {
+  const handleSaveTemplate = async () => {
+    if (saving) return;
+    
     try {
+      setSaving(true);
+      
       if (currentTemplateId) {
-        // Actualizar template existente
+        // Actualizar template existente - usar nombre y descripción actuales
         await updateTemplate(currentTemplateId, {
           html,
           css,
@@ -93,20 +98,33 @@ export default function EditorContainer() {
         });
         alert('Template actualizado exitosamente');
       } else {
-        // Crear nuevo template
-        await saveTemplate({ name, description, html, css, data });
+        // Crear nuevo template - usar nombre por defecto
+        const defaultName = `Template ${new Date().toLocaleDateString('es-ES', { 
+          day: '2-digit', 
+          month: '2-digit', 
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}`;
+        await saveTemplate({ 
+          name: defaultName, 
+          description: null, 
+          html, 
+          css, 
+          data 
+        });
         alert('Template guardado exitosamente');
       }
       // Marcar como guardado después de guardar exitosamente
-      // Usar setTimeout para asegurar que el estado se actualice después del render
       setTimeout(() => {
         markAsSaved();
         setUnsavedChanges(false);
       }, 100);
-      setShowSaveModal(false);
     } catch (error) {
       console.error('Error saving template:', error);
       alert('Error al guardar el template: ' + error.message);
+    } finally {
+      setSaving(false);
     }
   };
   
@@ -140,6 +158,9 @@ export default function EditorContainer() {
           setHtml(templateData.version.html);
           setCss(templateData.version.css);
           setData(templateData.version.data || '{}');
+          // Guardar nombre y descripción del template
+          setCurrentTemplateName(templateData.name || '');
+          setCurrentTemplateDescription(templateData.description || '');
           // Marcar como guardado después de cargar
           setTimeout(() => {
             markAsSaved();
@@ -152,10 +173,15 @@ export default function EditorContainer() {
     } else if (!templateId && currentTemplateId) {
       // Si no hay templateId en la URL, limpiar el estado
       setCurrentTemplateId(null);
+      setCurrentTemplateName('');
+      setCurrentTemplateDescription('');
       // Marcar como guardado cuando se limpia (nuevo template)
       markAsSaved();
     } else if (!templateId && !currentTemplateId) {
-      // Si es un template nuevo, marcar estado inicial como guardado
+      // Si es un template nuevo, limpiar nombre y descripción
+      setCurrentTemplateName('');
+      setCurrentTemplateDescription('');
+      // Marcar estado inicial como guardado
       markAsSaved();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -228,28 +254,37 @@ export default function EditorContainer() {
             )}
             <button
               className="save-btn"
-              onClick={() => setShowSaveModal(true)}
+              onClick={handleSaveTemplate}
+              disabled={saving}
               title={unsavedChanges ? 'Tienes cambios no guardados' : 'Guardar template'}
               style={{
                 padding: '0.5rem 1rem',
-                backgroundColor: unsavedChanges ? '#f59e0b' : '#238636',
+                backgroundColor: saving 
+                  ? '#6b7280' 
+                  : unsavedChanges 
+                    ? '#f59e0b' 
+                    : '#238636',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '6px',
-                cursor: 'pointer',
+                cursor: saving ? 'not-allowed' : 'pointer',
                 fontSize: '0.875rem',
                 fontWeight: '500',
                 transition: 'background-color 0.2s',
                 position: 'relative',
               }}
               onMouseOver={(e) => {
-                e.target.style.backgroundColor = unsavedChanges ? '#d97706' : '#2ea043';
+                if (!saving) {
+                  e.target.style.backgroundColor = unsavedChanges ? '#d97706' : '#2ea043';
+                }
               }}
               onMouseOut={(e) => {
-                e.target.style.backgroundColor = unsavedChanges ? '#f59e0b' : '#238636';
+                if (!saving) {
+                  e.target.style.backgroundColor = unsavedChanges ? '#f59e0b' : '#238636';
+                }
               }}
             >
-              {unsavedChanges && (
+              {unsavedChanges && !saving && (
                 <span
                   style={{
                     position: 'absolute',
@@ -263,8 +298,12 @@ export default function EditorContainer() {
                   }}
                 />
               )}
-              {currentTemplateId ? 'Actualizar' : 'Guardar'}
-              {unsavedChanges && ' •'}
+              {saving 
+                ? 'Guardando...' 
+                : currentTemplateId 
+                  ? 'Actualizar' 
+                  : 'Guardar'}
+              {unsavedChanges && !saving && ' •'}
             </button>
             <button
               className="logout-btn"
