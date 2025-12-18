@@ -7,12 +7,14 @@ import SettingsSidebar from '../components/SettingsSidebar';
 import SettingsHeader from '../components/SettingsHeader';
 import SettingsContent from '../components/SettingsContent';
 import ChatWidget from '../components/ChatWidget';
+import Toast from '../components/Toast';
 
 export default function Templates() {
   const [activeSection, setActiveSection] = useState('Templates');
   const { userName } = useUser();
-  const { templates, loading, error } = useTemplates();
+  const { templates, loading, error, refreshTemplates } = useTemplates();
   const router = useRouter();
+  const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
 
   const handleAddTemplate = () => {
     // Redirigir al editor para crear un nuevo template
@@ -27,6 +29,26 @@ export default function Templates() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/login');
+  };
+
+  const showToast = (message, type = 'success') => {
+    setToast({ isVisible: true, message, type });
+  };
+
+  const handleTemplateAction = async (action, templateId, errorMessage) => {
+    if (action === 'deleted' || action === 'duplicated' || action === 'renamed') {
+      await refreshTemplates();
+      const messages = {
+        deleted: 'Template eliminado exitosamente',
+        duplicated: 'Template duplicado exitosamente',
+        renamed: 'Template renombrado exitosamente',
+      };
+      showToast(messages[action] || 'Acción completada', 'success');
+    } else if (action === 'copied') {
+      showToast('ID copiado al portapapeles', 'success');
+    } else if (action === 'error') {
+      showToast(errorMessage || 'Ocurrió un error', 'error');
+    }
   };
 
   return (
@@ -48,10 +70,18 @@ export default function Templates() {
         <SettingsContent 
           templates={templates}
           onAddFolder={handleAddFolder}
+          onTemplateAction={handleTemplateAction}
         />
       </main>
 
       <ChatWidget />
+      
+      <Toast
+        isVisible={toast.isVisible}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, isVisible: false })}
+      />
     </div>
   );
 }

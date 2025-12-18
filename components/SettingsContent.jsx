@@ -1,7 +1,7 @@
 'use client';
 import TemplateListItem from './TemplateListItem';
 
-export default function SettingsContent({ templates, onAddFolder }) {
+export default function SettingsContent({ templates, onAddFolder, onTemplateAction }) {
   return (
     <div className="settings-content">
       <button className="add-folder-btn" onClick={onAddFolder}>
@@ -16,7 +16,11 @@ export default function SettingsContent({ templates, onAddFolder }) {
           </div>
         ) : (
           templates.map((template) => (
-            <TemplateListItem key={template.id} template={template} />
+            <TemplateListItem 
+              key={template.id} 
+              template={template}
+              onAction={onTemplateAction}
+            />
           ))
         )}
       </div>
