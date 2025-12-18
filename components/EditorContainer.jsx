@@ -347,6 +347,13 @@ export default function EditorContainer() {
       <div className="right-panel">
         <PreviewPane />
       </div>
+      
+      <Toast
+        isVisible={toast.isVisible}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, isVisible: false })}
+      />
     </div>
   );
 }
