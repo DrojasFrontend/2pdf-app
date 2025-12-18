@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { useUser } from '../hooks/useUser';
 import { useTemplates } from '../hooks/useTemplates';
@@ -15,6 +15,22 @@ export default function Templates() {
   const { templates, loading, error, refreshTemplates } = useTemplates();
   const router = useRouter();
   const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Filtrar templates basado en el término de búsqueda
+  const filteredTemplates = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return templates;
+    }
+    
+    const term = searchTerm.toLowerCase().trim();
+    return templates.filter(template => {
+      const nameMatch = template.name?.toLowerCase().includes(term);
+      const descriptionMatch = template.description?.toLowerCase().includes(term);
+      const idMatch = template.id?.toLowerCase().includes(term);
+      return nameMatch || descriptionMatch || idMatch;
+    });
+  }, [templates, searchTerm]);
 
   const handleAddTemplate = () => {
     // Redirigir al editor para crear un nuevo template
@@ -69,8 +85,11 @@ export default function Templates() {
 
         <SettingsContent 
           templates={templates}
+          filteredTemplates={filteredTemplates}
           onAddFolder={handleAddFolder}
           onTemplateAction={handleTemplateAction}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
         />
       </main>
 
