@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useUser } from '../hooks/useUser';
 import { useTemplates } from '../hooks/useTemplates';
 import { supabase } from '../lib/supabase';
+import { updateUserDisplayName } from '../lib/user';
 import SettingsSidebar from '../components/SettingsSidebar';
 import SettingsHeader from '../components/SettingsHeader';
 import SettingsContent from '../components/SettingsContent';
@@ -11,7 +12,7 @@ import Toast from '../components/Toast';
 
 export default function Templates() {
   const [activeSection, setActiveSection] = useState('Templates');
-  const { userName } = useUser();
+  const { userName, userEmail, refreshUserName } = useUser();
   const { templates, loading, error, refreshTemplates } = useTemplates();
   const router = useRouter();
   const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
@@ -51,6 +52,17 @@ export default function Templates() {
     setToast({ isVisible: true, message, type });
   };
 
+  const handleUpdateName = async (newName) => {
+    try {
+      await updateUserDisplayName(newName);
+      await refreshUserName();
+      showToast('Nombre actualizado exitosamente', 'success');
+    } catch (err) {
+      showToast('Error al actualizar el nombre: ' + err.message, 'error');
+      throw err;
+    }
+  };
+
   const handleTemplateAction = async (action, templateId, errorMessage) => {
     if (action === 'deleted' || action === 'duplicated' || action === 'renamed') {
       await refreshTemplates();
@@ -73,7 +85,9 @@ export default function Templates() {
         activeSection={activeSection}
         onSectionChange={setActiveSection}
         userName={userName}
+        userEmail={userEmail}
         onLogout={handleLogout}
+        onUpdateName={handleUpdateName}
       />
 
       <main className="settings-main">

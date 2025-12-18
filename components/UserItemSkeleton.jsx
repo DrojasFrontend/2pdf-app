@@ -1,11 +1,8 @@
 export default function UserItemSkeleton() {
   return (
     <div
+      className="template-card"
       style={{
-        backgroundColor: '#161b22',
-        border: '1px solid #30363d',
-        borderRadius: '8px',
-        padding: '16px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -68,9 +65,9 @@ export default function UserItemSkeleton() {
         .skeleton-pulse {
           background: linear-gradient(
             90deg,
-            #21262d 0%,
-            #30363d 50%,
-            #21262d 100%
+            #f3f4f6 0%,
+            #e5e7eb 50%,
+            #f3f4f6 100%
           );
           background-size: 1000px 100%;
           animation: shimmer 2s infinite linear;

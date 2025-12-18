@@ -115,6 +115,47 @@ export function useTeam() {
     }
   };
 
+  const removeUser = async (userId) => {
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      
+      if (!token) {
+        throw new Error('No hay sesión activa');
+      }
+
+      const response = await fetch('/api/remove-user', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      // Verificar si la respuesta es JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Respuesta no JSON recibida:', text.substring(0, 200));
+        throw new Error('El servidor devolvió una respuesta inesperada. Verifica que SUPABASE_SERVICE_ROLE_KEY esté configurada en .env.local');
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al eliminar usuario');
+      }
+
+      // Refrescar la lista de miembros (mostrar loading porque es una acción explícita)
+      await fetchMembers(true);
+      
+      return data;
+    } catch (err) {
+      console.error('Error en removeUser:', err);
+      throw err;
+    }
+  };
+
   return {
     members,
     loading,
@@ -122,6 +163,7 @@ export function useTeam() {
     isUserOwner,
     error,
     inviteUser,
+    removeUser,
     refreshMembers: fetchMembers,
   };
 }
