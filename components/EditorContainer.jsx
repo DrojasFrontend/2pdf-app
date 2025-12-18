@@ -149,16 +149,23 @@ export default function EditorContainer() {
       // Ctrl+S o Cmd+S → Guardar
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        if (!saving && unsavedChanges) {
-          handleSaveTemplate();
-        } else if (!saving) {
-          showToast('No hay cambios para guardar', 'info');
+        if (!saving) {
+          if (unsavedChanges) {
+            handleSaveTemplate();
+          } else {
+            showToast('No hay cambios para guardar', 'info');
+          }
         }
       }
       
-      // Esc → Cerrar sidebar AI si está abierto
-      if (e.key === 'Escape' && showAISidebar) {
-        handleToggleSidebar();
+      // Esc → Cerrar sidebar AI si está abierto, o salir del editor si está cerrado
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (showAISidebar) {
+          handleToggleSidebar();
+        } else {
+          handleBackClick();
+        }
       }
     };
 
@@ -166,7 +173,8 @@ export default function EditorContainer() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [saving, unsavedChanges, showAISidebar, handleSaveTemplate, handleToggleSidebar]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saving, unsavedChanges, showAISidebar]);
   
   // Advertencia al salir sin guardar
   const handleBackClick = () => {
