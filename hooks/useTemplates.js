@@ -58,9 +58,9 @@ export function useTemplates() {
     }
   }, []);
 
-  const saveTemplate = async ({ name, description, html, css, data }) => {
+  const saveTemplate = async ({ name, description, html, css, data, projectId }) => {
     try {
-      const result = await createTemplate({ name, description, html, css, data });
+      const result = await createTemplate({ name, description, html, css, data, projectId });
       await fetchTemplates(true); // Refrescar la lista (mostrar loading porque es una acción explícita)
       return result;
     } catch (err) {

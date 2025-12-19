@@ -11,6 +11,7 @@ import Toast from './Toast';
 import { useEditorStore } from '../store/editorStore';
 import { supabase } from '../lib/supabase';
 import { useTemplates } from '../hooks/useTemplates';
+import { useProjects } from '../hooks/useProjects';
 
 export default function EditorContainer() {
   const [activeTab, setActiveTab] = useState('HTML');
@@ -19,9 +20,11 @@ export default function EditorContainer() {
   const [currentTemplateId, setCurrentTemplateId] = useState(null);
   const [currentTemplateName, setCurrentTemplateName] = useState('');
   const [currentTemplateDescription, setCurrentTemplateDescription] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
   const { saveTemplate, updateTemplate, loadTemplate } = useTemplates();
+  const { projects } = useProjects();
   
   // Get state from Zustand store
   const html = useEditorStore((state) => state.html);
@@ -120,7 +123,8 @@ export default function EditorContainer() {
           description: null, 
           html, 
           css, 
-          data 
+          data,
+          projectId: selectedProjectId || null
         });
         showToast('Template guardado exitosamente', 'success');
       }
@@ -203,6 +207,7 @@ export default function EditorContainer() {
           // Guardar nombre y descripción del template
           setCurrentTemplateName(templateData.name || '');
           setCurrentTemplateDescription(templateData.description || '');
+          setSelectedProjectId(templateData.project_id || null);
           // Marcar como guardado después de cargar
           setTimeout(() => {
             markAsSaved();
@@ -217,12 +222,14 @@ export default function EditorContainer() {
       setCurrentTemplateId(null);
       setCurrentTemplateName('');
       setCurrentTemplateDescription('');
+      setSelectedProjectId(null);
       // Marcar como guardado cuando se limpia (nuevo template)
       markAsSaved();
     } else if (!templateId && !currentTemplateId) {
       // Si es un template nuevo, limpiar nombre y descripción
       setCurrentTemplateName('');
       setCurrentTemplateDescription('');
+      setSelectedProjectId(null);
       // Marcar estado inicial como guardado
       markAsSaved();
     }
@@ -293,6 +300,48 @@ export default function EditorContainer() {
               >
                 🤖
               </button>
+            )}
+            {!currentTemplateId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label 
+                  htmlFor="project-selector"
+                  style={{
+                    fontSize: '0.875rem',
+                    color: '#c9d1d9',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Proyecto:
+                </label>
+                <select
+                  id="project-selector"
+                  value={selectedProjectId || ''}
+                  onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#0d1117',
+                    color: '#c9d1d9',
+                    border: '1px solid #30363d',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    outline: 'none',
+                    minWidth: '180px',
+                  }}
+                  title="Seleccionar proyecto (opcional)"
+                >
+                  <option value="">Sin proyecto</option>
+                  {projects && projects.length > 0 ? (
+                    projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>Cargando proyectos...</option>
+                  )}
+                </select>
+              </div>
             )}
             <button
               className="save-btn"
