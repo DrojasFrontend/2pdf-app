@@ -1,51 +1,29 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { CodeIcon, CopyIcon, AlertIcon, EditIcon, MoreVerticalIcon, FolderIcon } from './Icons';
-import { useTemplates } from '../hooks/useTemplates';
-import { useEditorStore } from '../store/editorStore';
+import { FolderIcon, MoreVerticalIcon, CopyIcon } from './Icons';
+import { useProjects } from '../hooks/useProjects';
 import ConfirmModal from './ConfirmModal';
-import RenameModal from './RenameModal';
+import EditProjectModal from './EditProjectModal';
 
-export default function TemplateListItem({ template, onAction }) {
+export default function ProjectListItem({ project, onAction }) {
   const router = useRouter();
-  const { loadTemplate, removeTemplate, duplicateTemplate, renameTemplate } = useTemplates();
-  const { setHtml, setCss, setData } = useEditorStore();
-  const [loading, setLoading] = useState(false);
+  const { removeProject, updateProject } = useProjects();
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [duplicating, setDuplicating] = useState(false);
-  const [renaming, setRenaming] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const menuRef = useRef(null);
 
-  const handleEdit = async () => {
-    try {
-      setLoading(true);
-      const templateData = await loadTemplate(template.id);
-      
-      // Cargar el template en el editor
-      setHtml(templateData.version.html);
-      setCss(templateData.version.css);
-      setData(templateData.version.data || '{}');
-      
-      // Redirigir al editor con el templateId
-      router.push(`/?templateId=${template.id}`);
-    } catch (error) {
-      console.error('Error loading template:', error);
-      if (onAction) {
-        onAction('error', template.id, 'Error al cargar el template: ' + error.message);
-      }
-    } finally {
-      setLoading(false);
-    }
+  const handleViewTemplates = () => {
+    router.push(`/templates?projectId=${project.id}`);
   };
 
   const handleCopyId = () => {
-    navigator.clipboard.writeText(template.id);
+    navigator.clipboard.writeText(project.id);
     if (onAction) {
-      onAction('copied', template.id);
+      onAction('copied', project.id);
     }
   };
 
@@ -54,53 +32,36 @@ export default function TemplateListItem({ template, onAction }) {
       setDeleting(true);
       setShowDeleteConfirm(false);
       setShowMenu(false);
-      await removeTemplate(template.id);
+      await removeProject(project.id);
       if (onAction) {
-        onAction('deleted', template.id);
+        onAction('deleted', project.id);
       }
     } catch (error) {
-      console.error('Error deleting template:', error);
+      console.error('Error deleting project:', error);
       if (onAction) {
-        onAction('error', template.id, error.message);
+        onAction('error', project.id, error.message);
       }
     } finally {
       setDeleting(false);
     }
   };
 
-  const handleDuplicate = async () => {
+  const handleUpdate = async (name, slug, description) => {
     try {
-      setDuplicating(true);
+      setUpdating(true);
+      setShowEditModal(false);
       setShowMenu(false);
-      await duplicateTemplate(template.id);
+      await updateProject(project.id, { name, slug, description });
       if (onAction) {
-        onAction('duplicated', template.id);
+        onAction('updated', project.id);
       }
     } catch (error) {
-      console.error('Error duplicating template:', error);
+      console.error('Error updating project:', error);
       if (onAction) {
-        onAction('error', template.id, error.message);
+        onAction('error', project.id, error.message);
       }
     } finally {
-      setDuplicating(false);
-    }
-  };
-
-  const handleRename = async (newName) => {
-    try {
-      setRenaming(true);
-      await renameTemplate(template.id, newName);
-      if (onAction) {
-        onAction('renamed', template.id);
-      }
-    } catch (error) {
-      console.error('Error renaming template:', error);
-      if (onAction) {
-        onAction('error', template.id, error.message);
-      }
-      throw error;
-    } finally {
-      setRenaming(false);
+      setUpdating(false);
     }
   };
 
@@ -125,23 +86,29 @@ export default function TemplateListItem({ template, onAction }) {
     <div className="template-card">
       <div className="template-header">
         <div className="template-title">
-          <CodeIcon className="template-icon" />
-          <span className="template-name">{template.name}</span>
+          <FolderIcon className="template-icon" />
+          <span 
+            className="template-name" 
+            onClick={handleViewTemplates}
+            style={{ cursor: 'pointer', textDecoration: 'none' }}
+            onMouseOver={(e) => {
+              e.target.style.textDecoration = 'underline';
+              e.target.style.color = '#ec4899';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.textDecoration = 'none';
+              e.target.style.color = 'inherit';
+            }}
+          >
+            {project.name}
+          </span>
         </div>
         <div className="template-actions">
-          <button 
-            className="template-edit-btn"
-            onClick={handleEdit}
-            disabled={loading}
-          >
-            <EditIcon className="edit-icon" />
-            {loading ? 'Cargando...' : 'Edit'}
-          </button>
           <div style={{ position: 'relative' }} ref={menuRef}>
             <button 
               className="template-more-btn"
               onClick={() => setShowMenu(!showMenu)}
-              disabled={deleting || duplicating || renaming}
+              disabled={deleting || updating}
             >
               <MoreVerticalIcon />
             </button>
@@ -160,11 +127,7 @@ export default function TemplateListItem({ template, onAction }) {
                 minWidth: '160px',
               }}>
                 <button
-                  onClick={() => {
-                    setShowRenameModal(true);
-                    setShowMenu(false);
-                  }}
-                  disabled={renaming}
+                  onClick={handleViewTemplates}
                   style={{
                     width: '100%',
                     padding: '10px 16px',
@@ -172,7 +135,7 @@ export default function TemplateListItem({ template, onAction }) {
                     color: '#c9d1d9',
                     border: 'none',
                     textAlign: 'left',
-                    cursor: renaming ? 'not-allowed' : 'pointer',
+                    cursor: 'pointer',
                     fontSize: '0.875rem',
                     borderBottom: '1px solid #30363d',
                     display: 'flex',
@@ -180,17 +143,20 @@ export default function TemplateListItem({ template, onAction }) {
                     gap: '8px',
                   }}
                   onMouseOver={(e) => {
-                    if (!renaming) e.target.style.backgroundColor = '#21262d';
+                    e.target.style.backgroundColor = '#21262d';
                   }}
                   onMouseOut={(e) => {
                     e.target.style.backgroundColor = 'transparent';
                   }}
                 >
-                  Renombrar
+                  Ver Templates
                 </button>
                 <button
-                  onClick={handleDuplicate}
-                  disabled={duplicating}
+                  onClick={() => {
+                    setShowEditModal(true);
+                    setShowMenu(false);
+                  }}
+                  disabled={updating}
                   style={{
                     width: '100%',
                     padding: '10px 16px',
@@ -198,7 +164,7 @@ export default function TemplateListItem({ template, onAction }) {
                     color: '#c9d1d9',
                     border: 'none',
                     textAlign: 'left',
-                    cursor: duplicating ? 'not-allowed' : 'pointer',
+                    cursor: updating ? 'not-allowed' : 'pointer',
                     fontSize: '0.875rem',
                     borderBottom: '1px solid #30363d',
                     display: 'flex',
@@ -206,13 +172,13 @@ export default function TemplateListItem({ template, onAction }) {
                     gap: '8px',
                   }}
                   onMouseOver={(e) => {
-                    if (!duplicating) e.target.style.backgroundColor = '#21262d';
+                    if (!updating) e.target.style.backgroundColor = '#21262d';
                   }}
                   onMouseOut={(e) => {
                     e.target.style.backgroundColor = 'transparent';
                   }}
                 >
-                  {duplicating ? 'Duplicando...' : 'Duplicar'}
+                  Editar
                 </button>
                 <button
                   onClick={() => {
@@ -248,13 +214,13 @@ export default function TemplateListItem({ template, onAction }) {
         </div>
       </div>
       <div className="template-details">
-        {template.description && (
+        {project.description && (
           <div className="template-description" style={{ marginBottom: '8px', color: '#6b7280', fontSize: '0.875rem' }}>
-            {template.description}
+            {project.description}
           </div>
         )}
         <div className="template-id">
-          <span>ID: {template.id}</span>
+          <span>Slug: {project.slug || 'N/A'}</span>
           <button 
             className="copy-btn" 
             title="Copy ID"
@@ -263,35 +229,27 @@ export default function TemplateListItem({ template, onAction }) {
             <CopyIcon />
           </button>
         </div>
-        {template.project && (
-          <div className="template-project" style={{ marginTop: '4px', color: '#ec4899', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <FolderIcon style={{ width: '14px', height: '14px' }} />
-            <span>Proyecto: {template.project.name}</span>
-          </div>
-        )}
-        {template.version && (
-          <div className="template-version" style={{ marginTop: '4px', color: '#6b7280', fontSize: '0.875rem' }}>
-            Versión: {template.version.version_label}
-          </div>
-        )}
+        <div className="template-id" style={{ marginTop: '4px' }}>
+          <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>ID: {project.id}</span>
+        </div>
       </div>
       
       <ConfirmModal
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={handleDeleteConfirm}
-        title="Eliminar Template"
-        message={`¿Estás seguro de que quieres eliminar "${template.name}"? Esta acción no se puede deshacer.`}
+        title="Eliminar Proyecto"
+        message={`¿Estás seguro de que quieres eliminar "${project.name}"? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         cancelText="Cancelar"
         isDestructive={true}
       />
-      
-      <RenameModal
-        isOpen={showRenameModal}
-        onClose={() => setShowRenameModal(false)}
-        onSave={handleRename}
-        currentName={template.name}
+
+      <EditProjectModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleUpdate}
+        project={project}
       />
     </div>
   );

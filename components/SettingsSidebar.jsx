@@ -133,6 +133,8 @@ export default function SettingsSidebar({ activeSection, onSectionChange, userNa
             // Navegar a la ruta correspondiente
             if (item.id === 'Templates') {
               router.push('/templates');
+            } else if (item.id === 'Projects') {
+              router.push('/projects');
             } else if (item.id === 'Team') {
               router.push('/team');
             }

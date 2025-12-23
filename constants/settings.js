@@ -5,11 +5,13 @@ import {
   SettingsIcon, 
   TeamIcon, 
   WebhookIcon, 
-  KeyIcon 
+  KeyIcon,
+  FolderIcon
 } from '../components/Icons';
 
 export const NAVIGATION_ITEMS = [
   { id: 'Templates', Icon: TemplateIcon, label: 'Templates' },
+  { id: 'Projects', Icon: FolderIcon, label: 'Projects' },
   { id: 'Snippets', Icon: SnippetIcon, label: 'Snippets' },
   { id: 'Documents', Icon: DocumentIcon, label: 'Documents' },
   { id: 'Settings', Icon: SettingsIcon, label: 'Settings' },
