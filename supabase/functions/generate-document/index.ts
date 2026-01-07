@@ -30,9 +30,7 @@ interface ApiKeyRecord {
 
 interface TemplateVersion {
   id: string
-  html: string
-  css: string | null
-  data_schema: Record<string, unknown> | null
+  is_default: boolean
 }
 
 interface Template {
@@ -93,62 +91,8 @@ async function validateApiKey(apiKey: string | null) {
   return { valid: true, keyRecord: record }
 }
 
-// Función para procesar el template con los datos
-function processTemplate(html: string, css: string | null, data: Record<string, unknown>): string {
-  let processed = html
-
-  // Procesar loops {% for item in array %}...{% endfor %}
-  processed = processed.replace(
-    /{%\s*for\s+(\w+)\s+in\s+([\w.]+)\s*%}([\s\S]*?){%\s*endfor\s*%}/g,
-    (_, itemName, arrayPath, content) => {
-      const array = getNestedValue(data, arrayPath)
-      if (!Array.isArray(array)) return ''
-      return array.map((item, index) => {
-        let itemContent = content
-        // Reemplazar {{item.prop}} con el valor
-        itemContent = itemContent.replace(
-          new RegExp(`{{\\s*${itemName}\\.(\\w+)\\s*}}`, 'g'),
-          (_: string, prop: string) => String(item[prop] ?? '')
-        )
-        // Reemplazar {{item}} directamente
-        itemContent = itemContent.replace(
-          new RegExp(`{{\\s*${itemName}\\s*}}`, 'g'),
-          String(item)
-        )
-        return itemContent
-      }).join('')
-    }
-  )
-
-  // Procesar variables {{variable}}
-  processed = processed.replace(/{{\s*([\w.]+)\s*}}/g, (_, key) => {
-    const value = getNestedValue(data, key)
-    return String(value ?? '')
-  })
-
-  // Construir documento HTML completo
-  return `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>${css || ''}</style>
-      </head>
-      <body>
-        ${processed}
-      </body>
-    </html>
-  `
-}
-
-function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-  return path.split('.').reduce((o: unknown, k) => {
-    if (o && typeof o === 'object' && k in o) {
-      return (o as Record<string, unknown>)[k]
-    }
-    return undefined
-  }, obj)
-}
+// Nota: El procesamiento del template se hace en el Worker (morado)
+// Este Edge Function solo valida y crea el job
 
 serve(async (req) => {
   // Manejar CORS preflight
@@ -207,7 +151,7 @@ serve(async (req) => {
       )
     }
 
-    // 3. Obtener template
+    // 3. Validar que el template existe (sin obtener HTML/CSS)
     const supabase = getSupabaseAdmin()
     const { data: template, error: templateError } = await supabase
       .from('templates')
@@ -218,9 +162,6 @@ serve(async (req) => {
         project_id,
         template_versions (
           id,
-          html,
-          css,
-          data_schema,
           is_default
         )
       `)
@@ -240,7 +181,7 @@ serve(async (req) => {
 
     const typedTemplate = template as Template
 
-    // Obtener versión default
+    // Validar que tiene al menos una versión
     const defaultVersion = typedTemplate.template_versions.find(v => v.is_default) 
       || typedTemplate.template_versions[0]
 
@@ -254,7 +195,7 @@ serve(async (req) => {
       )
     }
 
-    // 4. Crear render_job
+    // 4. Crear render_job con status 'queued' (el Worker lo procesará)
     const { data: renderJob, error: jobError } = await supabase
       .from('render_jobs')
       .insert({
@@ -262,11 +203,11 @@ serve(async (req) => {
         project_id: keyRecord!.project_id,
         template_version_id: defaultVersion.id,
         api_key_id: keyRecord!.id,
-        status: 'processing',
+        status: 'queued',
         payload: data,
         options: options || {},
         queued_at: new Date().toISOString(),
-        started_at: new Date().toISOString(),
+        // started_at lo marcará el Worker cuando comience a procesar
       })
       .select()
       .single()
@@ -282,43 +223,22 @@ serve(async (req) => {
       )
     }
 
-    // 5. Procesar template con datos
-    const processedHtml = processTemplate(
-      defaultVersion.html,
-      defaultVersion.css,
-      data
-    )
-
-    // 6. TODO: Generar PDF con Playwright/Puppeteer
-    // Por ahora retornamos el HTML procesado y la info del job
-    // En producción, aquí se llamaría a un servicio de generación de PDF
-
-    // 7. Actualizar render_job como exitoso
-    await supabase
-      .from('render_jobs')
-      .update({
-        status: 'succeeded',
-        finished_at: new Date().toISOString(),
-      })
-      .eq('id', renderJob.id)
-
-    // 8. Retornar resultado
+    // 5. Retornar 202 Accepted con job_id
+    // El Worker (morado) se encargará de:
+    // - Obtener el template_version completo (HTML/CSS)
+    // - Procesar el template con los datos
+    // - Enviar a Render Service en AWS
+    // - Guardar PDF en Supabase Storage
+    // - Actualizar el job como 'succeeded' o 'failed'
+    // - Disparar webhooks
     return new Response(
       JSON.stringify({
-        success: true,
         job_id: renderJob.id,
-        template: {
-          id: typedTemplate.id,
-          name: typedTemplate.name,
-          version_id: defaultVersion.id,
-        },
-        // En producción esto sería la URL del PDF generado
-        // Por ahora retornamos el HTML para testing
-        html_preview: processedHtml,
-        message: 'Documento procesado. PDF generation pendiente de implementar.',
+        status: 'queued',
+        message: 'Job creado exitosamente. El documento será generado de forma asíncrona.',
       }),
       { 
-        status: 200, 
+        status: 202, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     )
