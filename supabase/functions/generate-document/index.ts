@@ -226,13 +226,6 @@ serve(async (req) => {
     }
 
     // 5. Retornar 202 Accepted con job_id
-    // El Worker (morado) se encargará de:
-    // - Obtener el template_version completo (HTML/CSS)
-    // - Procesar el template con los datos
-    // - Enviar a Render Service en AWS
-    // - Guardar PDF en Supabase Storage
-    // - Actualizar el job como 'succeeded' o 'failed'
-    // - Disparar webhooks
     return new Response(
       JSON.stringify({
         job_id: renderJob.id,
