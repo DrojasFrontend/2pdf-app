@@ -137,6 +137,8 @@ export default function SettingsSidebar({ activeSection, onSectionChange, userNa
               router.push('/projects');
             } else if (item.id === 'Team') {
               router.push('/team');
+            } else if (item.id === 'API Key') {
+              router.push('/api-keys');
             }
             // Agregar más rutas según sea necesario
           };
