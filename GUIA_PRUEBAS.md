@@ -55,12 +55,14 @@ npm run dev
 
 ## ⚡ Parte 2: Probar Backend (Edge Functions)
 
-### Requisitos Previos
+### Opción A: Pruebas Locales (Desarrollo)
+
+#### Requisitos Previos
 - Docker corriendo
 - Supabase CLI instalado
 - Base de datos con las tablas creadas (`modelo1.sql`)
 
-### Paso 1: Iniciar Supabase Local
+#### Paso 1: Iniciar Supabase Local
 
 ```bash
 cd /Users/daniel/2pdf/2pdf-app
@@ -197,6 +199,165 @@ curl -X POST http://127.0.0.1:54321/functions/v1/generate-document \
 
 ---
 
+### Opción B: Deployar y Probar en Supabase Remoto (Producción)
+
+#### Requisitos Previos
+- Supabase CLI instalado y configurado
+- Acceso al proyecto de Supabase (remoto)
+- Haber hecho login: `supabase login`
+
+#### Paso 1: Verificar Login y Proyecto
+
+```bash
+# Verificar que estás logueado
+supabase projects list
+
+# Si no estás logueado:
+supabase login
+# Esto abrirá el navegador para autenticarte
+```
+
+#### Paso 2: Linkear el Proyecto Remoto
+
+```bash
+cd /Users/daniel/2pdf/2pdf-app
+
+# Linkear con tu proyecto de Supabase
+supabase link --project-ref tu-project-ref
+
+# El project-ref lo encuentras en:
+# Supabase Dashboard → Settings → General → Reference ID
+```
+
+#### Paso 3: Deployar las Edge Functions
+
+```bash
+# Deployar todas las funciones
+supabase functions deploy validate-key
+supabase functions deploy generate-document
+
+# O deployar todas de una vez (si están en el directorio)
+supabase functions deploy
+```
+
+**Salida esperada:**
+```
+Deploying function validate-key...
+Function validate-key deployed successfully
+Deploying function generate-document...
+Function generate-document deployed successfully
+```
+
+#### Paso 4: Obtener la URL de las Functions
+
+Las funciones estarán disponibles en:
+```
+https://tu-project-ref.supabase.co/functions/v1/validate-key
+https://tu-project-ref.supabase.co/functions/v1/generate-document
+```
+
+**Obtener el project-ref:**
+```bash
+# Ver configuración del proyecto
+cat supabase/.temp/project-ref
+
+# O desde Supabase Dashboard:
+# Settings → General → Reference ID
+```
+
+#### Paso 5: Probar `validate-key` en Remoto
+
+**Con cURL:**
+```bash
+curl -X POST https://tu-project-ref.supabase.co/functions/v1/validate-key \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: pk_test_tu_key_aqui"
+```
+
+**Con Postman:**
+1. Método: `POST`
+2. URL: `https://tu-project-ref.supabase.co/functions/v1/validate-key`
+3. Headers:
+   - `X-API-Key`: `pk_test_tu_key_aqui`
+   - `Content-Type`: `application/json`
+4. Click "Send"
+
+**Respuesta esperada:**
+```json
+{
+  "valid": true,
+  "key": {
+    "id": "uuid",
+    "name": "Test Key",
+    "environment": "sandbox"
+  },
+  "project": {
+    "id": "uuid",
+    "name": "Mi Proyecto"
+  }
+}
+```
+
+#### Paso 6: Probar `generate-document` en Remoto
+
+**Con cURL:**
+```bash
+curl -X POST https://tu-project-ref.supabase.co/functions/v1/generate-document \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: pk_test_tu_key_aqui" \
+  -d '{
+    "template_id": "uuid-del-template",
+    "data": {
+      "nombre": "Juan Pérez",
+      "edad": 30
+    }
+  }'
+```
+
+**Con Postman:**
+1. Método: `POST`
+2. URL: `https://tu-project-ref.supabase.co/functions/v1/generate-document`
+3. Headers:
+   - `X-API-Key`: `pk_test_tu_key_aqui`
+   - `Content-Type`: `application/json`
+4. Body (raw JSON):
+```json
+{
+  "template_id": "uuid-del-template",
+  "data": {
+    "nombre": "Juan",
+    "edad": 30
+  }
+}
+```
+5. Click "Send"
+
+#### Paso 7: Ver Logs de las Functions
+
+```bash
+# Ver logs en tiempo real
+supabase functions logs validate-key --follow
+
+# Ver logs de generate-document
+supabase functions logs generate-document --follow
+
+# Ver últimas 50 líneas
+supabase functions logs validate-key --limit 50
+```
+
+#### Paso 8: Verificar en Supabase Dashboard
+
+1. Ve a: https://supabase.com/dashboard/project/tu-project-ref/functions
+2. Deberías ver las funciones deployadas:
+   - `validate-key`
+   - `generate-document`
+3. Click en cada una para ver:
+   - Logs
+   - Métricas (invocaciones, errores, latencia)
+   - Configuración
+
+---
+
 ## 🔍 Verificar en Base de Datos
 
 ### Después de crear una API Key (Frontend):
@@ -247,6 +408,32 @@ lsof -i :54321
 supabase functions serve --no-verify-jwt
 ```
 
+### Error: "Project not linked" (Remoto)
+```bash
+# Verificar link
+supabase status
+
+# Si no está linkeado:
+supabase link --project-ref tu-project-ref
+```
+
+### Error: "Function deployment failed" (Remoto)
+```bash
+# Verificar que las funciones existen localmente
+ls -la supabase/functions/
+
+# Verificar logs de deploy
+supabase functions deploy validate-key --debug
+
+# Verificar que tienes permisos en el proyecto
+supabase projects list
+```
+
+### Error: "CORS" (Remoto)
+- Verifica que `_shared/cors.ts` está configurado correctamente
+- Revisa los headers en la respuesta de la función
+- Verifica que el origen está permitido en CORS
+
 ---
 
 ## ✅ Checklist de Pruebas
@@ -260,7 +447,7 @@ supabase functions serve --no-verify-jwt
 - [ ] Filtrar por proyecto
 - [ ] Buscar por nombre
 
-### Backend
+### Backend (Local)
 - [ ] Validar API Key válida → retorna `valid: true`
 - [ ] Validar API Key inválida → retorna error
 - [ ] Validar API Key revocada → retorna error
@@ -268,12 +455,43 @@ supabase functions serve --no-verify-jwt
 - [ ] Generar documento con template inválido → retorna error
 - [ ] Verificar que se crea `render_job` en la BD
 
+### Backend (Remoto/Producción)
+- [ ] Deployar `validate-key` exitosamente
+- [ ] Deployar `generate-document` exitosamente
+- [ ] Probar `validate-key` en remoto → retorna `valid: true`
+- [ ] Probar `generate-document` en remoto → retorna HTML
+- [ ] Verificar logs en Supabase Dashboard
+- [ ] Verificar métricas de invocaciones
+
 ---
 
 ## 📝 Notas
 
 - Las Edge Functions retornan HTML procesado, no PDF aún
 - La generación real de PDF está pendiente de implementar
-- Los tests se hacen contra Supabase local, no producción
+- **IMPORTANTE**: Prueba primero localmente, luego deploya a remoto
 - Las API Keys se hashean con SHA-256 antes de guardarse
+- El `project-ref` lo encuentras en: Supabase Dashboard → Settings → General
+- Las funciones deployadas están disponibles públicamente (protege con API Keys)
+
+## 🚀 Comandos Rápidos de Deployment
+
+```bash
+# 1. Login (solo primera vez)
+supabase login
+
+# 2. Linkear proyecto
+supabase link --project-ref tu-project-ref
+
+# 3. Deployar funciones
+supabase functions deploy validate-key
+supabase functions deploy generate-document
+
+# 4. Ver logs
+supabase functions logs validate-key --follow
+
+# 5. Probar (reemplaza tu-project-ref y tu-key)
+curl -X POST https://tu-project-ref.supabase.co/functions/v1/validate-key \
+  -H "X-API-Key: pk_test_tu_key"
+```
 
