@@ -1,7 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { adminGet, adminPost } from '../_shared/supabase.ts'
-import { hashApiKey } from '../_shared/hash.ts'
+import { validateApiKey, type ApiKeyRecord } from '../_shared/apiKey.ts'
+import { errorResponse } from '../_shared/response.ts'
 
 interface GenerateRequest {
   template_id: string
@@ -9,22 +10,6 @@ interface GenerateRequest {
   options?: {
     format?: 'A4' | 'Letter' | 'Legal'
     orientation?: 'portrait' | 'landscape'
-  }
-}
-
-interface ApiKeyRecord {
-  id: string
-  name: string
-  environment: string
-  is_active: boolean
-  project_id: string
-  daily_limit: number | null
-  monthly_limit: number | null
-  expires_at: string | null
-  projects: {
-    id: string
-    name: string
-    organization_id: string
   }
 }
 
@@ -41,56 +26,6 @@ interface Template {
   template_versions: TemplateVersion[]
 }
 
-// Función para validar API Key y obtener contexto
-async function validateApiKey(apiKey: string | null) {
-  if (!apiKey) {
-    return { valid: false, error: 'API Key no proporcionada. Usa el header X-API-Key' }
-  }
-
-  if (!apiKey.startsWith('pk_live_') && !apiKey.startsWith('pk_test_')) {
-    return { valid: false, error: 'Formato de API Key inválido' }
-  }
-
-  const keyHash = await hashApiKey(apiKey)
-
-  const select = encodeURIComponent(
-    [
-      'id',
-      'name',
-      'environment',
-      'is_active',
-      'project_id',
-      'daily_limit',
-      'monthly_limit',
-      'expires_at',
-      'projects(id,name,organization_id)',
-    ].join(',')
-  )
-
-  const { data: rows, error: dbError } = await adminGet<ApiKeyRecord[]>(
-    `/rest/v1/api_keys?select=${select}&key_hash=eq.${keyHash}&limit=1`
-  )
-
-  const keyRecord = rows?.[0]
-
-  if (dbError || !keyRecord) {
-    console.error('Error buscando API Key:', dbError)
-    return { valid: false, error: `API Key no encontrada o inválida: ${dbError || 'No encontrada'}` }
-  }
-
-  const record = keyRecord as ApiKeyRecord
-
-  if (!record.is_active) {
-    return { valid: false, error: 'API Key revocada' }
-  }
-
-  if (record.expires_at && new Date(record.expires_at) < new Date()) {
-    return { valid: false, error: 'API Key expirada' }
-  }
-
-  return { valid: true, keyRecord: record }
-}
-
 // Nota: El procesamiento del template se hace en el Worker (morado)
 // Este Edge Function solo valida y crea el job
 
@@ -101,13 +36,7 @@ serve(async (req) => {
 
   // Solo aceptar POST
   if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Método no permitido. Usa POST' }),
-      { 
-        status: 405, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    return errorResponse('Método no permitido. Usa POST', 405)
   }
 
   try {
@@ -116,13 +45,7 @@ serve(async (req) => {
     const validation = await validateApiKey(apiKey)
 
     if (!validation.valid) {
-      return new Response(
-        JSON.stringify({ error: validation.error }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse(validation.error || 'API Key inválida', 401)
     }
 
     const { keyRecord } = validation
@@ -132,23 +55,11 @@ serve(async (req) => {
     const { template_id, data, options } = body
 
     if (!template_id) {
-      return new Response(
-        JSON.stringify({ error: 'template_id es requerido' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('template_id es requerido', 400)
     }
 
     if (!data || typeof data !== 'object') {
-      return new Response(
-        JSON.stringify({ error: 'data debe ser un objeto JSON' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('data debe ser un objeto JSON', 400)
     }
 
     // 3. Validar que el template existe (sin obtener HTML/CSS) - PostgREST
@@ -164,17 +75,7 @@ serve(async (req) => {
 
     if (templateError || !template) {
       console.error('Error buscando template:', templateError)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Template no encontrado o sin permisos',
-          details: templateError?.message,
-          template_id: template_id
-        }),
-        { 
-          status: 404, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('Template no encontrado o sin permisos', 404)
     }
 
     const typedTemplate = template as Template
@@ -184,13 +85,7 @@ serve(async (req) => {
       || typedTemplate.template_versions[0]
 
     if (!defaultVersion) {
-      return new Response(
-        JSON.stringify({ error: 'Template no tiene versiones' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('Template no tiene versiones', 400)
     }
 
     // 4. Crear render_job con status 'queued' (el Worker lo procesará)
@@ -213,16 +108,7 @@ serve(async (req) => {
 
     if (jobError || !renderJob) {
       console.error('Error creating render job:', jobError)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Error al crear job de renderizado',
-          details: jobError,
-        }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('Error al crear job de renderizado', 500)
     }
 
     // 5. Retornar 202 Accepted con job_id
@@ -240,21 +126,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error generating document:', error)
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    const errorStack = error instanceof Error ? error.stack : undefined
-    
-    return new Response(
-      JSON.stringify({ 
-        error: 'Error interno del servidor',
-        message: errorMessage,
-        stack: errorStack,
-        type: error instanceof Error ? error.constructor.name : typeof error
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    return errorResponse('Error interno del servidor', 500)
   }
 })
 
