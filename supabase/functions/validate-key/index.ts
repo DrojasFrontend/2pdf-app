@@ -26,7 +26,7 @@ serve(async (req) => {
   if (corsResponse) return corsResponse
 
   try {
-    // Obtener API Key del header
+    // Solo validar X-API-Key del cliente (la key de Supabase se obtiene automáticamente desde secrets)
     const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key')
 
     if (!apiKey) {
