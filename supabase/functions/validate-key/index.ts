@@ -20,6 +20,17 @@ interface ApiKeyRecord {
   }
 }
 
+// Helper para respuestas de error
+function errorResponse(message: string, status: number = 401): Response {
+  return new Response(
+    JSON.stringify({ valid: false, error: message }),
+    {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    }
+  )
+}
+
 serve(async (req) => {
   // Manejar CORS preflight
   const corsResponse = handleCors(req)
@@ -30,30 +41,12 @@ serve(async (req) => {
     const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key')
 
     if (!apiKey) {
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          error: 'API Key no proporcionada. Usa el header X-API-Key' 
-        }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('API Key no proporcionada. Usa el header X-API-Key')
     }
 
     // Validar formato de la key
     if (!apiKey.startsWith('pk_live_') && !apiKey.startsWith('pk_test_')) {
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          error: 'Formato de API Key inválido. Debe comenzar con pk_live_ o pk_test_' 
-        }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('Formato de API Key inválido. Debe comenzar con pk_live_ o pk_test_')
     }
 
     // Hashear la key para buscar en DB
@@ -81,46 +74,19 @@ serve(async (req) => {
     const keyRecord = rows?.[0]
 
     if (dbError || !keyRecord) {
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          error: 'API Key no encontrada o inválida' 
-        }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('API Key no encontrada o inválida')
     }
 
     const record = keyRecord as ApiKeyRecord
 
     // Verificar si está activa
     if (!record.is_active) {
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          error: 'API Key revocada' 
-        }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('API Key revocada')
     }
 
     // Verificar si expiró
     if (record.expires_at && new Date(record.expires_at) < new Date()) {
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          error: 'API Key expirada' 
-        }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      return errorResponse('API Key expirada')
     }
 
     // Key válida - retornar info
@@ -148,16 +114,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error validating API key:', error)
-    return new Response(
-      JSON.stringify({ 
-        valid: false, 
-        error: 'Error interno del servidor' 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    return errorResponse('Error interno del servidor', 500)
   }
 })
 
