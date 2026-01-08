@@ -40,15 +40,22 @@ serve(async (req) => {
   }
 
   try {
-    // 1. Validar API Key
+    // ============================================
+    // VALIDACIÓN DE API KEY (PRIMERO Y OBLIGATORIO)
+    // Si falla, no se ejecuta nada más
+    // ============================================
     const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key')
     const validation = await validateApiKey(apiKey)
 
     if (!validation.valid) {
+      // Early return: si la validación falla, no se hace nada más
       return errorResponse(validation.error || 'API Key inválida', 401)
     }
 
     const { keyRecord } = validation
+    // ============================================
+    // FIN DE VALIDACIÓN - Si llegamos aquí, la key es válida
+    // ============================================
 
     // 2. Parsear body
     const body: GenerateRequest = await req.json()
